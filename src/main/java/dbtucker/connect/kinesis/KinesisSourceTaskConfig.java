@@ -18,6 +18,9 @@ package dbtucker.connect.kinesis;
 
 import com.amazonaws.regions.Regions;
 import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigDef.Type;
+import org.apache.kafka.common.config.ConfigDef.Importance;
 
 import java.util.Arrays;
 import java.util.List;
@@ -35,10 +38,34 @@ public class KinesisSourceTaskConfig extends AbstractConfig {
         static String STREAM_ARN = "stream.arn";
     }
 
-    final List<String> shards;
+    private enum CfgTips {
+        ;
+        static final String REGION = "AWS region for the Kinesis source stream(s)." ;
+        static final String TOPIC_FORMAT = "Format string for destination Kafka topic; use ``${stream}`` as placeholder for source stream name." ;
+        static final String REC_PER_REQ = "max records per request" ;
+        static final String SHARDS = "comma-separated list of fully qualified shards (format: <stream>/<shard>)" ;
+        static final String STREAM = "unused" ;
+        static final String STREAM_ARN = "unused" ;
+    }
+
+    private static final ConfigDef myConfigDef = new ConfigDef()
+            .define(CfgKeys.REGION, ConfigDef.Type.STRING, null,
+                    ConfigDef.Importance.LOW, CfgTips.REGION)
+            .define(CfgKeys.TOPIC_FORMAT, ConfigDef.Type.STRING, "${stream}",
+                    ConfigDef.Importance.HIGH, CfgTips.TOPIC_FORMAT)
+            .define(CfgKeys.REC_PER_REQ, ConfigDef.Type.STRING, "${stream}",
+                    ConfigDef.Importance.HIGH, CfgTips.REC_PER_REQ)
+            .define(CfgKeys.SHARDS, ConfigDef.Type.STRING, "${stream}",
+                    ConfigDef.Importance.HIGH, CfgTips.SHARDS)
+            .define(CfgKeys.STREAM, ConfigDef.Type.STRING, "${stream}",
+                    ConfigDef.Importance.HIGH, CfgTips.STREAM)
+            .define(CfgKeys.STREAM_ARN, ConfigDef.Type.STRING, "${stream}",
+                    ConfigDef.Importance.HIGH, CfgTips.STREAM_ARN);
+
+    final List<String> shards;      // Syntax of each entry is <Stream>;<Shard> (so as to allow comma-separator)
 
     KinesisSourceTaskConfig(Map<String, String> props) {
-        super((Map) props);
+        super(myConfigDef, (Map) props, true);
         shards = Arrays.stream(getString(CfgKeys.SHARDS).split(",")).filter(shardId -> !shardId.isEmpty()).collect(Collectors.toList());
     }
 
@@ -62,8 +89,5 @@ public class KinesisSourceTaskConfig extends AbstractConfig {
         return this.shards;
     }
 
-    String streamForShard(String shardId) {
-        return getString(shardId + "." + CfgKeys.STREAM);
-    }
 }
 

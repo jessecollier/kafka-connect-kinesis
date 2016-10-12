@@ -34,7 +34,7 @@ public class KinesisSourceConnectorConfig extends AbstractConfig {
   private enum CfgKeys {
   	;
     static final String REGION = "region" ;
-    static final String STREAMS_PREFIX = "streams.regex" ;
+    static final String STREAMS_PREFIX = "streams.prefix" ;
     static final String STREAMS_WHITELIST = "streams.whitelist" ;
     static final String STREAMS_BLACKLIST = "streams.blacklist" ;
     static final String TOPIC_FORMAT = "topic.format" ;

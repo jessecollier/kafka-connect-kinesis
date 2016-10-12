@@ -35,8 +35,9 @@ import com.amazonaws.services.kinesis.model.StreamStatus;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceConnector;
-import org.apache.kafka.connect.util.ConnectorUtils;;
+import org.apache.kafka.connect.util.ConnectorUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -111,6 +112,10 @@ public class KinesisSourceConnector extends SourceConnector {
     log.info("Streams to ignore: {}", ignoredStreams);
 
     client.shutdown();
+
+    if (consumedStreams.isEmpty()) {
+        throw new ConnectException("No matching Kinesis Streams found.  Exiting connector");
+    }
   }
 
   @Override
@@ -120,20 +125,29 @@ public class KinesisSourceConnector extends SourceConnector {
 
   @Override
   public List<Map<String, String>> taskConfigs(int maxTasks) {
-    return ConnectorUtils.groupPartitions(
-      new ArrayList<>(streamShards.keySet()), maxTasks).stream().map(taskShards -> {
-        final Map<String, String> taskConfig = new HashMap<>();
-        taskConfig.put(KinesisSourceTaskConfig.CfgKeys.REGION, config.getRegion());
-        taskConfig.put(KinesisSourceTaskConfig.CfgKeys.REC_PER_REQ, "10");
-        taskConfig.put(KinesisSourceTaskConfig.CfgKeys.TOPIC_FORMAT, config.getTopicFormat());
-        taskConfig.put(KinesisSourceTaskConfig.CfgKeys.SHARDS, taskShards.stream().map(Shard::getShardId).collect(Collectors.joining(",")));
-        taskShards.forEach(shard -> {
-                final StreamDescription streamDesc = streamShards.get(shard).getStreamDescription();
-                taskConfig.put(shard.getShardId() + "." + KinesisSourceTaskConfig.CfgKeys.STREAM, streamDesc.getStreamName());
-                taskConfig.put(shard.getShardId() + "." + KinesisSourceTaskConfig.CfgKeys.STREAM_ARN, streamDesc.getStreamARN());
-        });
-        return taskConfig;
-    }).collect(Collectors.toList());
+      Shard shard;
+      StreamDescription streamDesc;
+      List<String> shardUuids = new ArrayList<String>();
+
+      for (Map.Entry<Shard, DescribeStreamResult> entry : streamShards.entrySet()) {
+          shard = entry.getKey();
+          streamDesc = entry.getValue().getStreamDescription();
+          shardUuids.add (streamDesc.getStreamName() + "/" + shard.getShardId().toString());
+      }
+
+      int numGroups = Math.min(shardUuids.size(), maxTasks);
+      List<List<String>> shardsGrouped = ConnectorUtils.groupPartitions(shardUuids, numGroups);
+      List<Map<String, String>> taskConfigs = new ArrayList<>(shardsGrouped.size());
+
+      for (List<String> taskShards : shardsGrouped) {
+          Map<String, String> taskProps = new HashMap<>();
+          taskProps.put(KinesisSourceTaskConfig.CfgKeys.REGION, config.getRegion());
+          taskProps.put(KinesisSourceTaskConfig.CfgKeys.REC_PER_REQ, "10");
+          taskProps.put(KinesisSourceTaskConfig.CfgKeys.TOPIC_FORMAT, config.getTopicFormat());
+          taskProps.put(KinesisSourceTaskConfig.CfgKeys.SHARDS, String.join(",", taskShards));
+          taskConfigs.add(taskProps);
+      }
+      return taskConfigs;
   }
 
   @Override

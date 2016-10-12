@@ -60,7 +60,7 @@ public class KinesisSourceTask extends SourceTask {
     shardIterators = new HashMap<>(assignedShards.size());
     currentShardIdx = 0;
 
-    log.info("start: KinesisSourceTaskConfiguration values: {}", config.toString());
+    log.info("start: KinesisSourceTaskConfiguration values: {}", config.originalsStrings());
     log.info("start: {} shards assigned to task {}", assignedShards.size(), this.toString());
   }
 
@@ -70,28 +70,39 @@ public class KinesisSourceTask extends SourceTask {
         throw new ConnectException("No source shards remaining for this task");
     }
 
-    final String shardId = assignedShards.get(currentShardIdx);
+      // Kinesis best practice is to sleep 1 second between calls to getRecords
+      // We'll do that only after we've cycled through all the shards we're polling
+      if (currentShardIdx == 0) {
+          try {
+              Thread.sleep(1000);
+          } catch (InterruptedException exception) {
+              throw exception;
+          }
+      }
+
+    final String shardUid = assignedShards.get(currentShardIdx);
 
     final GetRecordsRequest req = new GetRecordsRequest();
-    req.setShardIterator(toShardIterator(shardId));
+    req.setShardIterator(toShardIterator(shardUid));
     req.setLimit(config.getRecPerReq()); 
 
     final GetRecordsResult rsp = client.getRecords(req);
     log.info("client.getRecords retrieve {} records", rsp.getRecords().size());
     log.debug("client.getRecords returns {}", rsp.toString());
     if (rsp.getNextShardIterator() == null) {
-        log.info("Shard ID `{}` for stream `{}` has been closed, it will no longer be polled", shardId, config.streamForShard(shardId));
-        shardIterators.remove(shardId);
-        assignedShards.remove(shardId);
+        log.info("Shard ID `{}` for stream `{}` has been closed, it will no longer be polled",
+                shardUid.split("/")[1], shardUid.split("/")[0]);
+        shardIterators.remove(shardUid);
+        assignedShards.remove(shardUid);
     } else {
-        shardIterators.put(shardId, rsp.getNextShardIterator());
+        shardIterators.put(shardUid, rsp.getNextShardIterator());
     }
 
     currentShardIdx = (currentShardIdx + 1) % assignedShards.size();
 
-    final String streamName = config.streamForShard(shardId);
+    final String streamName = shardUid.split("/")[0];
     final String topic = config.getTopicFormat().replace("${stream}", streamName);
-    final Map<String, String> sourcePartition = toSourcePartition(shardId);
+    final Map<String, String> sourcePartition = toSourcePartition(shardUid);
 
     return rsp.getRecords().stream()
             .map(kinesisRecord -> toSourceRecord(sourcePartition, topic, kinesisRecord))
@@ -119,16 +130,18 @@ public class KinesisSourceTask extends SourceTask {
     );
   }
 
-  private String toShardIterator(String shardId) {
-    String iterator = shardIterators.get(shardId);
+  private String toShardIterator(String shardUid) {
+    String iterator = shardIterators.get(shardUid);
     if (iterator == null) {
-        final GetShardIteratorRequest req = 
-          getShardIteratorRequest( shardId,
-            config.streamForShard(shardId),
-            storedSequenceNumber(toSourcePartition(shardId))
-    );
+        String thisStream = shardUid.split("/")[0];
+        String thisShard = shardUid.split("/")[1];
+        log.debug("Initializing iterator for shardId {} of stream {} ", thisShard, thisStream);
+        final GetShardIteratorRequest req =
+          getShardIteratorRequest ( thisShard, thisStream,
+            storedSequenceNumber(toSourcePartition(shardUid)) );
+
     iterator = client.getShardIterator(req).getShardIterator();
-    shardIterators.put(shardId, iterator);
+    shardIterators.put(shardUid, iterator);
     }
     return iterator;
   }
@@ -150,8 +163,8 @@ public class KinesisSourceTask extends SourceTask {
         return req;
   }
 
-  private Map<String, String> toSourcePartition(String shardId) {
-    return Collections.singletonMap(Keys.SHARD, shardId);
+  private Map<String, String> toSourcePartition(String shardUid) {
+    return Collections.singletonMap(Keys.SHARD, shardUid);
   }
 
   private String storedSequenceNumber(Map<String, String> partition) {
