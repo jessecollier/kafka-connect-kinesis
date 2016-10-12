@@ -22,6 +22,16 @@ See http://docs.aws.amazon.com/streams/latest/dev/fundamental-stream.html for a
 tutorial on generating your own stream with some sample data.
 
 
+# Notes on Streams and Topics
+
+The Connector will not automatically create a Kinesis Stream for the Sink, so
+you should use the AWS tools to properly create one before launching the
+connector.   The Connector will create new Kafka topics as targets for the
+Source connector if automatic topic creation is enabled on the Kafka brokers.
+
+	The best practice is to create both Streams and Topics appropriatedly
+	before launching the connectors.
+
 # Running in development
 
 ```
