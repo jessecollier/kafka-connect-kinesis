@@ -110,8 +110,8 @@ public class KinesisSourceTask extends SourceTask {
   }
 
   private SourceRecord toSourceRecord(Map<String, String> sourcePartition, String topic, Record kinesisRecord) {
-        // TODO propagate timestamp via 
-        // `dynamoRecord.getApproximateCreationDateTime.getTime` 
+        // TODO propagate timestamp via
+        // `kinesisRecord.getApproximateCreationDateTime.getTime`
         // when that's exposed by Connect
     byte xferData[] = kinesisRecord.getData().array();
 
