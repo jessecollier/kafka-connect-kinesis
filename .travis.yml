@@ -1,0 +1,22 @@
+language: java
+sudo: false
+addons:
+  apt:
+    packages:
+      - oracle-java8-installer
+jdk:
+  - oraclejdk8
+script: 
+  - jdk_switcher use oraclejdk8
+  - mvn clean package
+before_deploy:
+  - ./release/tar_libs.sh
+deploy:
+  provider: releases
+  api_key:
+    secure: Wk0AR3VM3DuYnY7bXRF5hdT6UxFv0W2UyYCKDmay1V6qd29LncSGUj0OO3t8vzGba0QBDyinLnqMnGDBGCvmbqAxDfdn8vPaY0keuUJ370WWsWbY9uC+ay+U+RQfUZw1ZiIDPZ0NZOBB+r4Y+53oj61ZGdUICwtu6a4vfBsC/nhfdTn/EVo15bvQINGVEVscrerJaJYfWTWW5gvHcsDu6sgzzxqvREJld3bLMyvDUjdru8tm9gXms/KsFX1a5UBpk3wNlUoajfdsHChj+XhxXRF2vsT4xGmfUrCYs8+SH4Dz/G7aA+72n8xzlpHnFgkbCo9nmD2fFnPQtXWDmFxNwcYL3xVhhCon9N/6Lqje6zDqpHnkQ2WaHqJuhO6bJXGqgXIPyNLl5AuUaZkfLcgcNtEguEyzn4ou6UniPyUJnENK4rRSPG+PDTVIcjPrCjMluE//qQsXyYwSQucC2UXEsDUvjU7o7sSD5gjUPw5euZCqSDQAmatbtN2rQNARIar9FgMPtACzLELdhBTMvIC8WckLFbcNG874UqFjmACHCsvK31mEL16U2DB+Ofd5YZfBvaxhpNfP/pbHKHZ+XkRJuyjcf8tJmmOGkAMxmj0ZjH80tpn0Rr8azVhIpdTsVU7w8Kr3sQUujXMBlaeqkIQdFn7ThpAKYu1rusxOxT3tRm0=
+  file: kafka-connect-kinesis-${TRAVIS_TAG}.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
+    repo: jessecollier/kafka-connect-kinesis
