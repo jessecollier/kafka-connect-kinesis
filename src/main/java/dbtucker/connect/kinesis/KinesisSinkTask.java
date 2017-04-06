@@ -67,7 +67,7 @@ public class KinesisSinkTask extends SinkTask {
     final Map<String, List<PutRecordsRequestEntry>> writesByStream = new HashMap<>();
     for (SinkRecord record : collection) {
         final String streamName = config.getStreamFormat().replace("${topic}", record.topic());
-        final String defaultPartitionKey = record.topic() + "_" + record.kafkaPartition().toString()
+        final String defaultPartitionKey = record.topic() + "_" + record.kafkaPartition().toString();
         List<PutRecordsRequestEntry> writes = writesByStream.get(streamName);
         if (writes == null) {
             writes = new ArrayList<>();

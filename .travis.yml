@@ -18,5 +18,5 @@ deploy:
   file: kafka-connect-kinesis-${TRAVIS_TAG}.tar.gz
   skip_cleanup: true
   on:
-    tags: true
+    branch: master
     repo: jessecollier/kafka-connect-kinesis
