@@ -76,8 +76,12 @@ public class KinesisSinkTask extends SinkTask {
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
         if (record.key() != null) {
+            log.warn("I have a non-null record.key()=>'" + record.key() + "' record.value()=>'" + record.value() 
+                      + "' record.topic()=>'" + record.topic() + "' toSring()=>'" + record.key().toString() + "'"
+              );
             if (record.keySchema() != null) {
                 // TODO: correctly parse schema'ed key
+
                 put.setPartitionKey(record.key().toString());   // assume toString handles real Strings correctly
             } else {
                 put.setPartitionKey(record.key().toString());   // assume toString handles real Strings correctly
