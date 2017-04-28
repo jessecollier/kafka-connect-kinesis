@@ -75,7 +75,7 @@ public class KinesisSinkTask extends SinkTask {
 
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
-        if (record.key() != null) {
+        if (record.key() != null && !record.key().isEmpty()) {
             log.warn("I have a non-null record.key()=>'" + record.key() + "' record.value()=>'" + record.value() 
                       + "' record.topic()=>'" + record.topic() + "' toSring()=>'" + record.key().toString() + "'"
               );

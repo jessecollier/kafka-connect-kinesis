@@ -13,7 +13,7 @@ DEV_DIR=$(dirname ${THIS_SCRIPT})
 CFG_DIR=${DEV_DIR}/config
 
 CP_HOME=${CP_HOME:-/opt/confluent}
-export CLASSPATH=${DEV_DIR}/target/KinesisConnector-1.0-SNAPSHOT-package/share/java/KinesisConnector/\*
+export CLASSPATH=${DEV_DIR}/target/KinesisConnector-1.1.1-package/share/java/KinesisConnector/\*
 
 if [ -n "${TEST_TYPE}"  -a  ! -r ${CFG_DIR}/Kinesis${TEST_TYPE}-quickstart.properties ] ; then
 	echo "ERROR: cannot access ${CFG_DIR}/Kinesis${TEST_TYPE}-quickstart.properties"
