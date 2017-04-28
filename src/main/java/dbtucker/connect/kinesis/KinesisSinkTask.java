@@ -66,7 +66,16 @@ public class KinesisSinkTask extends SinkTask {
     if (collection.isEmpty()) return;
     final Map<String, List<PutRecordsRequestEntry>> writesByStream = new HashMap<>();
     for (SinkRecord record : collection) {
+        
         final String streamName = config.getStreamFormat().replace("${topic}", record.topic());
+
+        log.debug("record.key()=>'" + record.key() + "' record.value()=>'" + record.value() 
+                      + "' record.topic()=>'" + record.topic() + "' toSring()=>'" + record.key().toString() 
+                      + "' streamName=>'" + streamName + "'log.debug("record.key()=>'" + record.key() + "' record.value()=>'" + record.value() 
+                      + "' record.topic()=>'" + record.topic() + "' toSring()=>'" + record.key().toString() + "'"
+            );"
+            );
+
         List<PutRecordsRequestEntry> writes = writesByStream.get(streamName);
         if (writes == null) {
             writes = new ArrayList<>();
@@ -76,9 +85,6 @@ public class KinesisSinkTask extends SinkTask {
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
         if (record.key() != null && !record.key().isEmpty()) {
-            log.warn("I have a non-null record.key()=>'" + record.key() + "' record.value()=>'" + record.value() 
-                      + "' record.topic()=>'" + record.topic() + "' toSring()=>'" + record.key().toString() + "'"
-              );
             if (record.keySchema() != null) {
                 // TODO: correctly parse schema'ed key
 
