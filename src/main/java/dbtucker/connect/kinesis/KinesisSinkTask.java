@@ -20,11 +20,7 @@ import com.amazonaws.services.kinesis.AmazonKinesisClient;
 import com.amazonaws.services.kinesis.model.*;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -42,6 +38,8 @@ public class KinesisSinkTask extends SinkTask {
   private KinesisSinkConnectorConfig config;
   private AmazonKinesisClient client;
   private int remainingRetries;
+  private int partitionKeysCount = 1_000_000;
+  private Random random = new Random();
 
   @Override
   public void start(Map<String, String> map) {
@@ -83,19 +81,9 @@ public class KinesisSinkTask extends SinkTask {
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
 
-        final String key = record.key() == null ? "" : record.key().toString();
-        if (!key.isEmpty()) {
-            if (record.keySchema() != null) {
-                // TODO: correctly parse schema'ed key
-
-                put.setPartitionKey(key);   // assume toString handles real Strings correctly
-            } else {
-                put.setPartitionKey(key);   // assume toString handles real Strings correctly
-            }
-        } else {
-            put.setPartitionKey("Partition_1");
-        }
-
+        final String key = Integer.toString(random.nextInt(partitionKeysCount));
+        log.debug("Setting partition key: " + key);
+        put.setPartitionKey(key);
         writes.add(put.clone());
     }
 
