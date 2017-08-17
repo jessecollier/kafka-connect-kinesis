@@ -50,6 +50,17 @@ public class KinesisSinkTask extends SinkTask {
     log.debug("Task launched with client {}", client.toString());
   }
 
+    // Use the key provided in the kafka message. Does not support avro schemas
+    // Returns random key as default
+  public void getPartitionKey(SinkRecord record) {
+    final String record_key = record.key() == null ? "" : record.key().toString();
+    if (!record_key.isEmpty()) {
+      return record_key;
+    } else {
+      return Integer.toString(random.nextInt(partitionKeysCount));
+    }
+  }
+
     // Since Kinesis only supports ByteBuffers for the data sent down, we should invest a bit of
     // time in what to pass (and then how to parse the return).
     //
@@ -76,9 +87,9 @@ public class KinesisSinkTask extends SinkTask {
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
 
-        final String key = Integer.toString(random.nextInt(partitionKeysCount));
+        final String partition_key = getPartitionKey(record)
         log.debug("Setting partition key: " + key);
-        put.setPartitionKey(key);
+        put.setPartitionKey(partition_key);
         writes.add(put.clone());
     }
 
@@ -156,24 +167,40 @@ public class KinesisSinkTask extends SinkTask {
     return VersionUtil.getVersion();
   }
 
+  // http://docs.aws.amazon.com/streams/latest/dev/developing-producers-with-sdk.html
   private void retryPutRecords(String streamName, List<PutRecordsRequestEntry> entries, PutRecordsResult putRecordsResult) throws InterruptedException {
+      
+      int retryCount = 0
+      int maxSleepValue = 6
       while (putRecordsResult.getFailedRecordCount() > 0) {
+          
           final List<PutRecordsRequestEntry> failedRecordsList = new ArrayList<>();
           final List<PutRecordsResultEntry> putRecordsResultEntryList = putRecordsResult.getRecords();
           for (int i = 0; i < putRecordsResultEntryList.size(); i++) {
               final PutRecordsRequestEntry putRecordRequestEntry = entries.get(i);
               final PutRecordsResultEntry putRecordsResultEntry = putRecordsResultEntryList.get(i);
               if (putRecordsResultEntry.getErrorCode() != null) {
+                  log.error("putRecords returned error: (" + putRecordsResultEntry.getErrorCode() + ") " + putRecordsResultEntry.getErrorMessage())
                   failedRecordsList.add(putRecordRequestEntry);
               }
           }
-          entries = failedRecordsList;
+
+          entries = failedRecordsList; // reduce entries to new list of failed records
           PutRecordsRequest putRecordsRequest  = new PutRecordsRequest();
           putRecordsRequest.setStreamName(streamName);
           putRecordsRequest.setRecords(entries);
-          Thread.sleep(1000);//sleep 1 second to ensure new AWS limits
+
+          // exponential sleep backoff
+          int sleepvalue = retryCount > maxSleepValue ? (int) Math.pow(2, maxSleepValue) : (int)  Math.pow(2, retryCount);
+          log.info("retryPutRecords: Sleeping for " + sleepvalue)
+          Thread.sleep(sleepvalue);
+          
           putRecordsResult = client.putRecords(putRecordsRequest);
-          log.debug("putRecords returns {}", putRecordsResult.toString());
+          log.debug("retryPutRecords: Full result: " + putRecordsResult.toString())
+          log.error("retryPutRecords: Retried " + failedRecordsList.size() + " records.");
+          retryCount++;
       }
+
+      log.info("retryPutRecords: Successfully resent all messages with errors.")
   }
 }
