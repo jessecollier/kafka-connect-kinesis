@@ -172,6 +172,7 @@ public class KinesisSinkTask extends SinkTask {
       
       int retryCount = 0;
       int maxSleepValue = 6;
+      Boolean didStartWithErrors = Boolean.valueOf(putRecordsResult.getFailedRecordCount() > 0);
       while (putRecordsResult.getFailedRecordCount() > 0) {
           
           final List<PutRecordsRequestEntry> failedRecordsList = new ArrayList<>();
@@ -201,6 +202,8 @@ public class KinesisSinkTask extends SinkTask {
           retryCount++;
       }
 
-      log.info("retryPutRecords (" + streamName + "): Successfully resent all messages with errors.");
+      if (didStartWithErrors) {
+        log.info("retryPutRecords (" + streamName + "): Successfully resent all messages with errors.");
+      }
   }
 }
