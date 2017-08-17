@@ -88,7 +88,7 @@ public class KinesisSinkTask extends SinkTask {
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
 
         final String partition_key = getPartitionKey(record);
-        log.debug("Setting partition key: " + key);
+        log.debug("Setting partition key: " + partition_key);
         put.setPartitionKey(partition_key);
         writes.add(put.clone());
     }
