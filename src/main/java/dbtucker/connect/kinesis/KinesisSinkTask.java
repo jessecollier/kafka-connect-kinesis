@@ -87,7 +87,7 @@ public class KinesisSinkTask extends SinkTask {
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
 
-        final String partition_key = getPartitionKey(record)
+        final String partition_key = getPartitionKey(record);
         log.debug("Setting partition key: " + key);
         put.setPartitionKey(partition_key);
         writes.add(put.clone());
@@ -170,8 +170,8 @@ public class KinesisSinkTask extends SinkTask {
   // http://docs.aws.amazon.com/streams/latest/dev/developing-producers-with-sdk.html
   private void retryPutRecords(String streamName, List<PutRecordsRequestEntry> entries, PutRecordsResult putRecordsResult) throws InterruptedException {
       
-      int retryCount = 0
-      int maxSleepValue = 6
+      int retryCount = 0;
+      int maxSleepValue = 6;
       while (putRecordsResult.getFailedRecordCount() > 0) {
           
           final List<PutRecordsRequestEntry> failedRecordsList = new ArrayList<>();
@@ -180,7 +180,7 @@ public class KinesisSinkTask extends SinkTask {
               final PutRecordsRequestEntry putRecordRequestEntry = entries.get(i);
               final PutRecordsResultEntry putRecordsResultEntry = putRecordsResultEntryList.get(i);
               if (putRecordsResultEntry.getErrorCode() != null) {
-                  log.error("putRecords returned error: (" + putRecordsResultEntry.getErrorCode() + ") " + putRecordsResultEntry.getErrorMessage())
+                  log.error("putRecords returned error: (" + putRecordsResultEntry.getErrorCode() + ") " + putRecordsResultEntry.getErrorMessage());
                   failedRecordsList.add(putRecordRequestEntry);
               }
           }
@@ -192,15 +192,15 @@ public class KinesisSinkTask extends SinkTask {
 
           // exponential sleep backoff
           int sleepvalue = retryCount > maxSleepValue ? (int) Math.pow(2, maxSleepValue) : (int)  Math.pow(2, retryCount);
-          log.info("retryPutRecords: Sleeping for " + sleepvalue)
+          log.info("retryPutRecords: Sleeping for " + sleepvalue);
           Thread.sleep(sleepvalue);
           
           putRecordsResult = client.putRecords(putRecordsRequest);
-          log.debug("retryPutRecords: Full result: " + putRecordsResult.toString())
+          log.debug("retryPutRecords: Full result: " + putRecordsResult.toString());
           log.error("retryPutRecords: Retried " + failedRecordsList.size() + " records.");
           retryCount++;
       }
 
-      log.info("retryPutRecords: Successfully resent all messages with errors.")
+      log.info("retryPutRecords: Successfully resent all messages with errors.");
   }
 }
