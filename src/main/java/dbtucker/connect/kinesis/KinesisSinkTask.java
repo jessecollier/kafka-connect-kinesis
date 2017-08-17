@@ -67,11 +67,6 @@ public class KinesisSinkTask extends SinkTask {
         
         final String streamName = config.getStreamFormat().replace("${topic}", record.topic());
 
-        log.debug("record.key()=>'" + record.key() + "' record.value()=>'" + record.value() 
-                      + "' record.topic()=>'" + record.topic() + "' toSring()=>'" + record.key().toString() 
-                      + "' streamName=>'" + streamName + "'"
-            );
-
         List<PutRecordsRequestEntry> writes = writesByStream.get(streamName);
         if (writes == null) {
             writes = new ArrayList<>();
