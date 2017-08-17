@@ -20,11 +20,8 @@ import com.amazonaws.services.kinesis.AmazonKinesisClient;
 import com.amazonaws.services.kinesis.model.*;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -42,6 +39,8 @@ public class KinesisSinkTask extends SinkTask {
   private KinesisSinkConnectorConfig config;
   private AmazonKinesisClient client;
   private int remainingRetries;
+  private int partitionKeysCount = 1_000_000;
+  private Random random = new Random();
 
   @Override
   public void start(Map<String, String> map) {
@@ -83,19 +82,9 @@ public class KinesisSinkTask extends SinkTask {
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
 
-        final String key = record.key() == null ? "" : record.key().toString();
-        if (!key.isEmpty()) {
-            if (record.keySchema() != null) {
-                // TODO: correctly parse schema'ed key
-
-                put.setPartitionKey(key);   // assume toString handles real Strings correctly
-            } else {
-                put.setPartitionKey(key);   // assume toString handles real Strings correctly
-            }
-        } else {
-            put.setPartitionKey("Partition_1");
-        }
-
+        final String key = Integer.toString(random.nextInt(partitionKeysCount));
+        log.debug("Setting partition key: " + key);
+        put.setPartitionKey(key);
         writes.add(put.clone());
     }
 
@@ -133,6 +122,11 @@ public class KinesisSinkTask extends SinkTask {
           entriesSubset = entries.subList(0, maxRecordsPerRequest-1);
           putRecordsRequest.setRecords(entriesSubset);
           putRecordsResult = client.putRecords(putRecordsRequest);
+          try {
+              retryPutRecords(streamName, entriesSubset, putRecordsResult);
+          } catch (InterruptedException e) {
+              log.error("InterruptedException caught on retry send", e);
+          }
           log.debug("putRecords returns {}", putRecordsResult.toString());
 
           entries = entries.subList(maxRecordsPerRequest,entries.size()-1);
@@ -141,6 +135,11 @@ public class KinesisSinkTask extends SinkTask {
       if (numEntries > 0) {
           putRecordsRequest.setRecords(entries);
           putRecordsResult = client.putRecords(putRecordsRequest);
+          try {
+              retryPutRecords(streamName, entries, putRecordsResult);
+          } catch (InterruptedException e) {
+              log.error("InterruptedException caught on retry send", e);
+          }
           log.debug("putRecords returns {}", putRecordsResult.toString());
       }
   }
@@ -163,4 +162,24 @@ public class KinesisSinkTask extends SinkTask {
     return VersionUtil.getVersion();
   }
 
+  private void retryPutRecords(String streamName, List<PutRecordsRequestEntry> entries, PutRecordsResult putRecordsResult) throws InterruptedException {
+      while (putRecordsResult.getFailedRecordCount() > 0) {
+          final List<PutRecordsRequestEntry> failedRecordsList = new ArrayList<>();
+          final List<PutRecordsResultEntry> putRecordsResultEntryList = putRecordsResult.getRecords();
+          for (int i = 0; i < putRecordsResultEntryList.size(); i++) {
+              final PutRecordsRequestEntry putRecordRequestEntry = entries.get(i);
+              final PutRecordsResultEntry putRecordsResultEntry = putRecordsResultEntryList.get(i);
+              if (putRecordsResultEntry.getErrorCode() != null) {
+                  failedRecordsList.add(putRecordRequestEntry);
+              }
+          }
+          entries = failedRecordsList;
+          PutRecordsRequest putRecordsRequest  = new PutRecordsRequest();
+          putRecordsRequest.setStreamName(streamName);
+          putRecordsRequest.setRecords(entries);
+          Thread.sleep(1000);//sleep 1 second to ensure new AWS limits
+          putRecordsResult = client.putRecords(putRecordsRequest);
+          log.debug("putRecords returns {}", putRecordsResult.toString());
+      }
+  }
 }
