@@ -20,11 +20,7 @@ import com.amazonaws.services.kinesis.AmazonKinesisClient;
 import com.amazonaws.services.kinesis.model.*;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -42,6 +38,8 @@ public class KinesisSinkTask extends SinkTask {
   private KinesisSinkConnectorConfig config;
   private AmazonKinesisClient client;
   private int remainingRetries;
+  private int partitionKeysCount = 1_000_000;
+  private Random random = new Random();
 
   @Override
   public void start(Map<String, String> map) {
@@ -50,6 +48,17 @@ public class KinesisSinkTask extends SinkTask {
     client.configureRegion(config.getRegionId());
     remainingRetries = config.getMaxRetries();
     log.debug("Task launched with client {}", client.toString());
+  }
+
+    // Use the key provided in the kafka message. Does not support avro schemas
+    // Returns random key as default
+  public String getPartitionKey(SinkRecord record) {
+    final String record_key = record.key() == null ? "" : record.key().toString();
+    if (!record_key.isEmpty()) {
+      return record_key;
+    } else {
+      return Integer.toString(random.nextInt(partitionKeysCount));
+    }
   }
 
     // Since Kinesis only supports ByteBuffers for the data sent down, we should invest a bit of
@@ -69,11 +78,6 @@ public class KinesisSinkTask extends SinkTask {
         
         final String streamName = config.getStreamFormat().replace("${topic}", record.topic());
 
-        log.debug("record.key()=>'" + record.key() + "' record.value()=>'" + record.value() 
-                      + "' record.topic()=>'" + record.topic() + "' toSring()=>'" + record.key().toString() 
-                      + "' streamName=>'" + streamName + "'"
-            );
-
         List<PutRecordsRequestEntry> writes = writesByStream.get(streamName);
         if (writes == null) {
             writes = new ArrayList<>();
@@ -83,19 +87,9 @@ public class KinesisSinkTask extends SinkTask {
         final PutRecordsRequestEntry put = new PutRecordsRequestEntry();
         put.setData(ByteBuffer.wrap(record.value().toString().getBytes()));
 
-        final String key = record.key() == null ? "" : record.key().toString();
-        if (!key.isEmpty()) {
-            if (record.keySchema() != null) {
-                // TODO: correctly parse schema'ed key
-
-                put.setPartitionKey(key);   // assume toString handles real Strings correctly
-            } else {
-                put.setPartitionKey(key);   // assume toString handles real Strings correctly
-            }
-        } else {
-            put.setPartitionKey("Partition_1");
-        }
-
+        final String partition_key = getPartitionKey(record);
+        log.debug("Setting partition key: " + partition_key);
+        put.setPartitionKey(partition_key);
         writes.add(put.clone());
     }
 
@@ -133,6 +127,11 @@ public class KinesisSinkTask extends SinkTask {
           entriesSubset = entries.subList(0, maxRecordsPerRequest-1);
           putRecordsRequest.setRecords(entriesSubset);
           putRecordsResult = client.putRecords(putRecordsRequest);
+          try {
+              retryPutRecords(streamName, entriesSubset, putRecordsResult);
+          } catch (InterruptedException e) {
+              log.error("InterruptedException caught on retry send", e);
+          }
           log.debug("putRecords returns {}", putRecordsResult.toString());
 
           entries = entries.subList(maxRecordsPerRequest,entries.size()-1);
@@ -141,6 +140,11 @@ public class KinesisSinkTask extends SinkTask {
       if (numEntries > 0) {
           putRecordsRequest.setRecords(entries);
           putRecordsResult = client.putRecords(putRecordsRequest);
+          try {
+              retryPutRecords(streamName, entries, putRecordsResult);
+          } catch (InterruptedException e) {
+              log.error("InterruptedException caught on retry send", e);
+          }
           log.debug("putRecords returns {}", putRecordsResult.toString());
       }
   }
@@ -163,4 +167,40 @@ public class KinesisSinkTask extends SinkTask {
     return VersionUtil.getVersion();
   }
 
+  // http://docs.aws.amazon.com/streams/latest/dev/developing-producers-with-sdk.html
+  private void retryPutRecords(String streamName, List<PutRecordsRequestEntry> entries, PutRecordsResult putRecordsResult) throws InterruptedException {
+      
+      int retryCount = 0;
+      int maxSleepValue = 6;
+      while (putRecordsResult.getFailedRecordCount() > 0) {
+          
+          final List<PutRecordsRequestEntry> failedRecordsList = new ArrayList<>();
+          final List<PutRecordsResultEntry> putRecordsResultEntryList = putRecordsResult.getRecords();
+          for (int i = 0; i < putRecordsResultEntryList.size(); i++) {
+              final PutRecordsRequestEntry putRecordRequestEntry = entries.get(i);
+              final PutRecordsResultEntry putRecordsResultEntry = putRecordsResultEntryList.get(i);
+              if (putRecordsResultEntry.getErrorCode() != null) {
+                  log.error("putRecords returned error: (" + putRecordsResultEntry.getErrorCode() + ") " + putRecordsResultEntry.getErrorMessage());
+                  failedRecordsList.add(putRecordRequestEntry);
+              }
+          }
+
+          entries = failedRecordsList; // reduce entries to new list of failed records
+          PutRecordsRequest putRecordsRequest  = new PutRecordsRequest();
+          putRecordsRequest.setStreamName(streamName);
+          putRecordsRequest.setRecords(entries);
+
+          // exponential sleep backoff
+          int sleepvalue = retryCount > maxSleepValue ? (int) Math.pow(2, maxSleepValue) : (int)  Math.pow(2, retryCount);
+          log.info("retryPutRecords: Sleeping for " + sleepvalue);
+          Thread.sleep(sleepvalue);
+          
+          putRecordsResult = client.putRecords(putRecordsRequest);
+          log.debug("retryPutRecords: Full result: " + putRecordsResult.toString());
+          log.error("retryPutRecords: Retried " + failedRecordsList.size() + " records.");
+          retryCount++;
+      }
+
+      log.info("retryPutRecords: Successfully resent all messages with errors.");
+  }
 }
