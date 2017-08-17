@@ -52,7 +52,7 @@ public class KinesisSinkTask extends SinkTask {
 
     // Use the key provided in the kafka message. Does not support avro schemas
     // Returns random key as default
-  public void getPartitionKey(SinkRecord record) {
+  public String getPartitionKey(SinkRecord record) {
     final String record_key = record.key() == null ? "" : record.key().toString();
     if (!record_key.isEmpty()) {
       return record_key;
