@@ -15,6 +15,8 @@ deploy:
   provider: releases
   api_key:
     secure: nioNFgDM0ERimPD2Gc4FrordH7m7bb9HWkxQarSK5lWe7IG0JapG7SblnAPic8Ip1E+RMMxQx7W6H+3L44rKcwLLgLDfnJ+y93QYRFh9+jhtKThfypxE/uqqcQ1L10KuI9TuecxgfXrH1WaaQdQ4c5xH6K3P0IkYAxVQva6V/rhN7MnHMvB5D+rUnNC5Ok493rZ4g367YaYGyWVBg2eEdJQfUIdr0tzCRyOtAy1g6m506ZgM6JxzMt/+2iWexrZi76onHstNChmsrw54yBvQZhz2EsLKsqGPD68fGZND+Nh7vXEesiaiNVzGak4qOW/+v00ecXEN5AGteuv9QUAi54AiZObwJlzC3tVeook5RLAyx7s8iEeTfGxR3k/YP/Y8Fm0KpCVVhIauYn1sEfnNV5SMWq6gNQknGvGn8JmAndvTIN7geWDaA1CSEaMLf4bfqQ03NXjR3IBIyiExHHHQZrIuKF4PgzAk4F9XtNhiIKhiTJJ/esKetv9rU6gf/LWak1iGtNqNatv+rDmcCI3D4VKWKLxDEjoE+w70s0zdtYjgrpcZz7Mz476nblVZe8zUgN/hePKAbOeEdMOljIaJ9LhCH6GeDY/oYhgdr2P2ibBX+0D38NZireCxNwkdL5S9F41Z+dWriL53e3YIEClbyers1cevafNhmaPJgjSKHA4=
+  file: kafka-connect-kinesis-${TRAVIS_TAG}.tar.gz
+  skip_cleanup: true
   on:
     tags: true
     repo: vaski/kafka-connect-kinesis
