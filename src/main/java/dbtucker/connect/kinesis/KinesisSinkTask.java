@@ -181,7 +181,7 @@ public class KinesisSinkTask extends SinkTask {
               final PutRecordsRequestEntry putRecordRequestEntry = entries.get(i);
               final PutRecordsResultEntry putRecordsResultEntry = putRecordsResultEntryList.get(i);
               if (putRecordsResultEntry.getErrorCode() != null) {
-                  log.error("putRecords returned error: (" + putRecordsResultEntry.getErrorCode() + ") " + putRecordsResultEntry.getErrorMessage());
+                  log.debug("putRecords returned error: (" + putRecordsResultEntry.getErrorCode() + ") " + putRecordsResultEntry.getErrorMessage());
                   failedRecordsList.add(putRecordRequestEntry);
               }
           }
