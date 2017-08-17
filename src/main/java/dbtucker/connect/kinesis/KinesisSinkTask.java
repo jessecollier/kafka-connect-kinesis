@@ -192,15 +192,15 @@ public class KinesisSinkTask extends SinkTask {
 
           // exponential sleep backoff
           int sleepvalue = retryCount > maxSleepValue ? (int) Math.pow(2, maxSleepValue) : (int)  Math.pow(2, retryCount);
-          log.info("retryPutRecords: Sleeping for " + sleepvalue);
-          Thread.sleep(sleepvalue);
+          log.info("retryPutRecords: Sleeping for " + sleepvalue + " seconds. (retryCount=>" + retryCount + ")");
+          Thread.sleep(sleepvalue*1000);
           
           putRecordsResult = client.putRecords(putRecordsRequest);
           log.debug("retryPutRecords: Full result: " + putRecordsResult.toString());
-          log.error("retryPutRecords: Retried " + failedRecordsList.size() + " records.");
+          log.info("retryPutRecords (" + streamName + "): Retried " + failedRecordsList.size() + " records.");
           retryCount++;
       }
 
-      log.info("retryPutRecords: Successfully resent all messages with errors.");
+      log.info("retryPutRecords (" + streamName + "): Successfully resent all messages with errors.");
   }
 }
